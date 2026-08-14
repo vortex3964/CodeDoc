@@ -1,4 +1,5 @@
 ;Doc
+; imports
 global _start
 
 section .data

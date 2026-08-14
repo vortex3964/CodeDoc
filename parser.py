@@ -297,8 +297,16 @@ async def worker(filename : str):
 
 
 
-def dispatch(list_files: list, out_path: str, _clean: bool):
+async def dispatch(list_files: list, out_path: str, _clean: bool):
     global l
     l = list_files
     global out
     out = out_path
+    
+    # truncate the output file once so reruns dont duplicate
+    # the previous docs, workers still append afterwards
+    open(out_path, "w").close()
+    
+    # create tasks for every file in the list and dont finish without them
+    gathered_tasks = [asyncio.create_task(worker(filename)) for filename in list_files]
+    await asyncio.gather(*gathered_tasks)

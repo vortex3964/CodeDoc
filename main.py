@@ -2,6 +2,7 @@
 # for the files in the right mode
 
 import argparse
+import asyncio
 import os
 from pathlib import Path
 from parser import dispatch
@@ -101,6 +102,8 @@ IGNORE_FILES = {
 # recursively list all the files under root dir
 def list_files_req(root_dir, exc_dirs: list, exc_files: list):
     files = []
+    exc_dirs = exc_dirs or []
+    exc_files = exc_files or []
 
     for dirpath, dirnames, filenames in os.walk(root_dir):
         dirnames[:] = [
@@ -115,8 +118,9 @@ def list_files_req(root_dir, exc_dirs: list, exc_files: list):
             if ext in IGNORE_EXTENSIONS:
                 continue
 
-            # make path relative to the project root since it will be displayed in the end file
-            dirpath = os.path.relpath(dirpath, root_dir)
+            # keep the walk path as-is so workers can open the file
+            # from the current working directory, it also gets
+            # displayed in the end file
             files.append(os.path.join(dirpath, fname))
 
     files.sort()
@@ -133,7 +137,7 @@ parces them and then starts the dispatcher
 to start extracting comments and code from the files
 
 """
-def main():
+async def main():
     # init the parser
     parser = argparse.ArgumentParser(
         description="cli tool to parse specialized comments from code files into markdown to help with documentation",
@@ -152,7 +156,7 @@ def main():
         "--output",
         dest="out",
         nargs="?",
-        default="out.md",
+        default="out",
         required=False,
         help="output path",
     )
@@ -195,8 +199,8 @@ def main():
         clean = False
 
     # print(file_list)
-    dispatch(file_list,args.out,clean)
+    await dispatch(file_list,args.out,clean)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

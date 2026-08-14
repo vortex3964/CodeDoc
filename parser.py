@@ -11,25 +11,33 @@ from langs import GetCommentFamily
 # shared resource to keep track of file order so that files are
 # written properly and sorted as we do it in main
 l = []
-lock = asyncio.Lock()
+out = ""
 
 # this is the lock to make sure that only one file ever writes to the
 # output folder thats a shared resource
 file_lock = asyncio.Lock()
 
+# condition for stopping the wait cycle in worker, it also guards the
+# shared list l so that waiters wake up when the head changes
+cond = asyncio.Condition()
 
 async def remove_head_from_list():
     global l
-    async with lock:
+    async with cond:
         if len(l) != 0:
             l.pop(0)
+        cond.notify_all()
 
 
 async def remove_item_from_list(item: str):
     global l
-    async with lock:
-        l.remove(item)
-
+    async with cond:
+        try:
+            l.remove(item)
+        except ValueError:
+            #do nothing if we dont find the value
+            return
+        cond.notify_all()
 
 # i/o write is sync task so we need to add a helped function
 # and make that a thread so that we dont wait synchronously
@@ -41,8 +49,13 @@ def sync_write_file(md_contents: str, out_path: str):
 
 async def write_file(md_contents: str, out_path: str):
     async with file_lock:
-        await asyncio.to_thread(sync_write_file, md_contents, out_path)
+        await asyncio.to_thread(sync_write_file,md_contents, out_path)
+        await remove_head_from_list()
 
+def sync_read_file(name):
+    with open(name, "r", errors="replace") as f:
+        lines = f.readlines()
+        return lines
 
 async def read_file(name: str) -> str | None:
     f_type = pathlib.Path(name).suffix
@@ -85,8 +98,7 @@ async def read_file(name: str) -> str | None:
     else:
         opt_close = ""
 
-    with open(name, "r", errors="replace") as f:
-        lines = f.readlines()
+    lines = await asyncio.to_thread(sync_read_file , name )
 
     # match a full single line comment
     single_line_re = re.compile(rf"^\s*{esc_single}(.*)$")
@@ -172,6 +184,7 @@ async def read_file(name: str) -> str | None:
     md_lines = [f"# {name}", ""]
     i = 0
     n = len(lines)
+    found_any = False
 
     while i < n:
         if doc_end_re.match(lines[i]):
@@ -182,6 +195,8 @@ async def read_file(name: str) -> str | None:
         if not tag_match:
             i += 1
             continue
+
+        found_any = True
 
         is_code = tag_match.group("code") is not None
         description = tag_match.group("desc").strip()
@@ -250,14 +265,40 @@ async def read_file(name: str) -> str | None:
 
         i = end_idx + 1
 
+    # NOTE: no doc comments of any kind were found in the file
+    if not found_any:
+        return None
+
     md_text = "\n".join(md_lines).rstrip() + "\n"
     return md_text
 
+"""
+the worker thread is the main way we parse the comments
+each worker is tasked with parsing a file looking for doc
+comments after that its checks if its can write on the final
+file and then after it writes it finishes
 
-def worker():
-    pass
+"""
+async def worker(filename : str):
+    # read the contents of the file
+    md = await read_file(filename)
+    
+    # finish if you found nothing, drop the file from the order list
+    # so it never blocks the workers behind it
+    if md is None:
+        await remove_item_from_list(filename)
+        return
+    
+    # wait till its the correct workers turn to run
+    async with cond:
+        await cond.wait_for(lambda:l and l[0] == filename)
+    
+    await write_file(md , out )
 
 
-def dispatch(list_files: list, _out_path: str, _clean: bool):
+
+def dispatch(list_files: list, out_path: str, _clean: bool):
     global l
     l = list_files
+    global out
+    out = out_path

@@ -1,5 +1,6 @@
-# DESC: main.py is purely here to process the flags and start the procedure
-# for the files in the right mode
+# Doc : Description
+# main.py processes the command line flags and starts the
+# dispatcher to generate the documentation
 
 import argparse
 import asyncio
@@ -7,7 +8,10 @@ import os
 from pathlib import Path
 from parser import dispatch
 
-#  list of ignored files extensions etch
+# Doc : list of ignored directories, extensions and files
+# we keep lists called IGNORE_DIRS IGNORE_EXTENSIONS IGNORE_FILES of the
+# files we would like to ignore like hidden files (.git) or .exe files we
+# shouldn't bother reading
 IGNORE_DIRS = {
     ".git",
     ".svn",
@@ -99,7 +103,12 @@ IGNORE_FILES = {
 }
 
 
-# recursively list all the files under root dir
+# Doc code : recursive listing of all the files in the directories
+# walks the root directory recursively and returns the sorted
+# list of files to parse, skipping the ignored directories,
+# extensions, files and the user excluded ones
+
+
 def list_files_req(root_dir, exc_dirs: list, exc_files: list):
     files = []
     exc_dirs = exc_dirs or []
@@ -127,16 +136,13 @@ def list_files_req(root_dir, exc_dirs: list, exc_files: list):
     return files
 
 
-def help():
-    pass
+# Doc end
 
-"""
-main just takes the arguments
-from the user using argparse
-parces them and then starts the dispatcher
-to start extracting comments and code from the files
+# Doc: main
+# parses the command line arguments, builds the file list and
+# starts the dispatcher
 
-"""
+
 async def main():
     # init the parser
     parser = argparse.ArgumentParser(
@@ -148,7 +154,7 @@ async def main():
         "path",
         nargs="?",
         default=".",
-        help="directory to read from defaults to ( current directory )",
+        help="directory to read from, defaults to (current directory)",
     )
 
     parser.add_argument(
@@ -166,7 +172,7 @@ async def main():
         "--exclude-dirs",
         dest="exc_d",
         nargs="*",
-        help="directores to exclude from reading",
+        help="directories to exclude from reading",
     )
 
     parser.add_argument(
@@ -189,9 +195,9 @@ async def main():
     args = parser.parse_args()
 
     file_list = list_files_req(args.path, args.exc_d, args.exc_f)
-    
+
     clean = True
-    
+
     # make sure the output is an md file
     args.out = f"{args.out}.md"
 
@@ -199,8 +205,10 @@ async def main():
         clean = False
 
     # print(file_list)
-    await dispatch(file_list,args.out,clean)
+    await dispatch(file_list, args.out, clean)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# Doc end

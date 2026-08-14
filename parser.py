@@ -1,25 +1,32 @@
-# DESC: this file has the thread pool and logic to parse files looking for comments with the right mode deppending on the flags
+# Doc : Description
+# thread pool and parsing logic that turns doc comments into
+# markdown, dispatch runs one worker per file
 
 import asyncio
 import pathlib
 import re
 from langs import GetCommentFamily
 
-# we will see if this will be included
-# ignored_words = ["NOTE:","TODO:","EXP:","FIX:"]
-
+# Doc code: global variables we reuse for multithreading
 # shared resource to keep track of file order so that files are
 # written properly and sorted as we do it in main
 l = []
 out = ""
 
 # this is the lock to make sure that only one file ever writes to the
-# output folder thats a shared resource
+# output folder that's a shared resource
 file_lock = asyncio.Lock()
 
 # condition for stopping the wait cycle in worker, it also guards the
 # shared list l so that waiters wake up when the head changes
 cond = asyncio.Condition()
+
+# Doc end
+
+# Doc code : remove_head_from_list
+# pops the first entry of the order list and wakes up the
+# workers waiting for their turn
+
 
 async def remove_head_from_list():
     global l
@@ -29,33 +36,60 @@ async def remove_head_from_list():
         cond.notify_all()
 
 
+# Doc end
+
+# Doc  : remove_item_from_list
+# removes an entry from the order list without blocking the
+# queue, used for files that produced no output
+
+
 async def remove_item_from_list(item: str):
     global l
     async with cond:
         try:
             l.remove(item)
         except ValueError:
-            #do nothing if we dont find the value
+            # do nothing if we don't find the value
             return
         cond.notify_all()
 
-# i/o write is sync task so we need to add a helped function
-# and make that a thread so that we dont wait synchronously
-# for the i/o to finish everytime and freeze the event loop
+
+# Doc: sync_write_file
+# the write is a sync task so we need a helper function
+# run in a thread so we don't wait synchronously for the
+# i/o to finish every time and freeze the event loop
 def sync_write_file(md_contents: str, out_path: str):
     with open(out_path, "a") as f:
         f.write(md_contents)
 
 
+# Doc : write_file
+# appends the markdown of a file to the output file, the
+# file lock serializes the writers so only the head of the
+# order list writes at a time
+
+
 async def write_file(md_contents: str, out_path: str):
     async with file_lock:
-        await asyncio.to_thread(sync_write_file,md_contents, out_path)
+        await asyncio.to_thread(sync_write_file, md_contents, out_path)
         await remove_head_from_list()
+
+
+# Doc  : sync_read_file
+# sync file read helper, runs in a thread by read_file
+
 
 def sync_read_file(name):
     with open(name, "r", errors="replace") as f:
         lines = f.readlines()
         return lines
+
+
+# Doc  : read_file
+# parses a file looking for doc comments and returns the
+# markdown text for it, or None if the file is unsupported
+# or has no doc comments
+
 
 async def read_file(name: str) -> str | None:
     f_type = pathlib.Path(name).suffix
@@ -98,7 +132,7 @@ async def read_file(name: str) -> str | None:
     else:
         opt_close = ""
 
-    lines = await asyncio.to_thread(sync_read_file , name )
+    lines = await asyncio.to_thread(sync_read_file, name)
 
     # match a full single line comment
     single_line_re = re.compile(rf"^\s*{esc_single}(.*)$")
@@ -272,29 +306,35 @@ async def read_file(name: str) -> str | None:
     md_text = "\n".join(md_lines).rstrip() + "\n"
     return md_text
 
-"""
-the worker thread is the main way we parse the comments
-each worker is tasked with parsing a file looking for doc
-comments after that its checks if its can write on the final
-file and then after it writes it finishes
 
-"""
-async def worker(filename : str):
+# Doc code : worker
+# parses a file, waits until it is the worker's turn to write
+# and then writes the markdown to the output file
+
+
+async def worker(filename: str):
     # read the contents of the file
     md = await read_file(filename)
-    
+
     # finish if you found nothing, drop the file from the order list
     # so it never blocks the workers behind it
     if md is None:
         await remove_item_from_list(filename)
         return
-    
-    # wait till its the correct workers turn to run
-    async with cond:
-        await cond.wait_for(lambda:l and l[0] == filename)
-    
-    await write_file(md , out )
 
+    # wait until it's this worker's turn to write
+    async with cond:
+        await cond.wait_for(lambda: l and l[0] == filename)
+
+    await write_file(md, out)
+
+
+# Doc end
+
+
+# Doc code : dispatcher thread
+# sets up the order list and the output file, then starts one
+# worker task per file and waits for all of them to finish
 
 
 async def dispatch(list_files: list, out_path: str, _clean: bool):
@@ -302,11 +342,14 @@ async def dispatch(list_files: list, out_path: str, _clean: bool):
     l = list_files
     global out
     out = out_path
-    
-    # truncate the output file once so reruns dont duplicate
+
+    # truncate the output file once so reruns don't duplicate
     # the previous docs, workers still append afterwards
     open(out_path, "w").close()
-    
-    # create tasks for every file in the list and dont finish without them
+
+    # create tasks for every file in the list and don't finish without them
     gathered_tasks = [asyncio.create_task(worker(filename)) for filename in list_files]
     await asyncio.gather(*gathered_tasks)
+
+
+# Doc end

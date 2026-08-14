@@ -8,23 +8,43 @@ from langs import GetCommentFamily
 # we will see if this will be included
 # ignored_words = ["NOTE:","TODO:","EXP:","FIX:"]
 
+# shared resource to keep track of file order so that files are
+# written properly and sorted as we do it in main
 l = []
 lock = asyncio.Lock()
 
-
-def remove_head_from_list():
-    pass
-
-
-def remove_item_from_list(item: str):
-    pass
+# this is the lock to make sure that only one file ever writes to the
+# output folder thats a shared resource
+file_lock = asyncio.Lock()
 
 
-def write_file():
-    pass
+async def remove_head_from_list():
+    global l
+    async with lock:
+        if len(l) != 0:
+            l.pop(0)
 
 
-def read_file(name: str):
+async def remove_item_from_list(item: str):
+    global l
+    async with lock:
+        l.remove(item)
+
+
+# i/o write is sync task so we need to add a helped function
+# and make that a thread so that we dont wait synchronously
+# for the i/o to finish everytime and freeze the event loop
+def sync_write_file(md_contents: str, out_path: str):
+    with open(out_path, "a") as f:
+        f.write(md_contents)
+
+
+async def write_file(md_contents: str, out_path: str):
+    async with file_lock:
+        await asyncio.to_thread(sync_write_file, md_contents, out_path)
+
+
+async def read_file(name: str) -> str | None:
     f_type = pathlib.Path(name).suffix
 
     com = GetCommentFamily(f_type)
@@ -33,7 +53,7 @@ def read_file(name: str):
 
     # unsupported file, drop it from the work list
     if single is None and mult is None:
-        remove_item_from_list(name)
+        await remove_item_from_list(name)
         return None
 
     mstart = mclose = None

@@ -119,7 +119,7 @@ def list_files_req(root_dir, exc_dirs: list, exc_files: list):
             dirpath = os.path.relpath(dirpath, root_dir)
             files.append(os.path.join(dirpath, fname))
 
-    #files.sort()
+    files.sort()
     return files
 
 

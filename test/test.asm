@@ -1,11 +1,8 @@
-;Doc code: includes
-;includes
+;Doc
 global _start
 
 section .data
     msg db "hello world", 0xa
-
-;Doc end
 
 ;Doc code : hello world program
 ; hello world program

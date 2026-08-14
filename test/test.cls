@@ -1,8 +1,5 @@
-%Doc code: includes
-%includes
+%Doc
 \NeedsTeXFormat{LaTeX2e}
-
-%Doc end
 
 %Doc code : hello world program
 % hello world program

@@ -1,8 +1,5 @@
-//Doc code: includes
-//includes
+//Doc
 #include <string>
-
-//Doc end
 
 //Doc code : hello world program
 /* 

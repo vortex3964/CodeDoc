@@ -1,8 +1,5 @@
-'Doc code: imports
-'imports
+'Doc
 Option Explicit
-
-'Doc end
 
 'Doc code : hello world program
 ' hello world program

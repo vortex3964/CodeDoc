@@ -1,8 +1,5 @@
-//Doc code: includes
-//includes
+//Doc
 <?php
-
-//Doc end
 
 //Doc code : hello world program
 /* 

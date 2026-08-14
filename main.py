@@ -119,14 +119,20 @@ def list_files_req(root_dir, exc_dirs: list, exc_files: list):
             dirpath = os.path.relpath(dirpath, root_dir)
             files.append(os.path.join(dirpath, fname))
 
-    files.sort()
+    #files.sort()
     return files
 
 
 def help():
     pass
 
+"""
+main just takes the arguments
+from the user using argparse
+parces them and then starts the dispatcher
+to start extracting comments and code from the files
 
+"""
 def main():
     # init the parser
     parser = argparse.ArgumentParser(
@@ -181,6 +187,9 @@ def main():
     file_list = list_files_req(args.path, args.exc_d, args.exc_f)
     
     clean = True
+    
+    # make sure the output is an md file
+    args.out = f"{args.out}.md"
 
     if args.clean_doc == "None":
         clean = False

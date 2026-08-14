@@ -1,8 +1,5 @@
-//Doc code: includes
-//includes
+//Doc
 #include <stdio.h>
-
-//Doc end
 
 //Doc code : hello world program
 /* 

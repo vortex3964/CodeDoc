@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 import scala.io.StdIn
-
-//Doc end
 
 //Doc code : hello world program
 /* 

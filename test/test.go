@@ -1,10 +1,7 @@
-//Doc code: includes
-//includes
+//Doc
 package main
 
 import "fmt"
-
-//Doc end
 
 //Doc code : hello world program
 /* 

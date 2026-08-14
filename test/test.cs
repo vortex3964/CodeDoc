@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 using System;
-
-//Doc end
 
 //Doc code : hello world program
 /* 

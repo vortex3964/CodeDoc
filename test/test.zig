@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 const std = @import("std");
-
-//Doc end
 
 //Doc code : hello world program
 /* 

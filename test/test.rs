@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 use std::io;
-
-//Doc end
 
 //Doc code : hello world program
 /* 

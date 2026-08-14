@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 import java.util.*;
-
-//Doc end
 
 //Doc code : hello world program
 /* 

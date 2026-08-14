@@ -1,8 +1,5 @@
---Doc code: imports
---imports
+--Doc
 local io = require("io")
-
---Doc end
 
 --Doc code : hello world program
 --[[ 

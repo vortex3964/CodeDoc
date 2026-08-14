@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 #import <Foundation/Foundation.h>
-
-//Doc end
 
 //Doc code : hello world program
 /* 

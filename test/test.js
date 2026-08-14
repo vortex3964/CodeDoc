@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 import fs from "fs";
-
-//Doc end
 
 //Doc code : hello world program
 /* 

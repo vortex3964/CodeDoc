@@ -1,8 +1,5 @@
---Doc code: imports
---imports
+--Doc
 module Test where
-
---Doc end
 
 --Doc code : hello world program
 {- 

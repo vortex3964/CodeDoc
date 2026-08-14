@@ -1,8 +1,5 @@
-//Doc code: includes
-//includes
+//Doc
 program Test;
-
-//Doc end
 
 //Doc code : hello world program
 (* 

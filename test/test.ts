@@ -1,8 +1,5 @@
-//Doc code: imports
-//clear console
-console.clear()
-
-//Doc end
+//Doc
+console.log("import")
 
 //Doc code : hello world program
 /* 

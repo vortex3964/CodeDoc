@@ -1,8 +1,5 @@
-//Doc code: imports
-//imports
+//Doc
 import React from "react";
-
-//Doc end
 
 //Doc code : hello world program
 /* 

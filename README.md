@@ -123,5 +123,5 @@ Languages with only one comment family derive the other from it: a language with
 The project documents itself with the command:
 
 ```
-python3 main.py . -o doc -exd test
+python3 main.py . -o docs -exd test
 ```

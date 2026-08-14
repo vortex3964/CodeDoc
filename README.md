@@ -4,6 +4,31 @@ A CLI tool that turns specialized `Doc` comments in your source code into a sing
 
 It scans a directory recursively, extracts every `Doc` comment block from the supported languages, and writes the result to a markdown file in the same order as the files on disk.
 
+## Installation
+
+**Linux / macOS** (requires Python 3.10+ and curl):
+
+```
+curl -fsSL https://raw.githubusercontent.com/vortex3964/CodeDoc/main/install/install.sh | bash
+```
+
+**Windows** (requires Python 3.10+):
+
+```
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/vortex3964/CodeDoc/main/install/install.ps1 | iex"
+```
+
+This installs the `codedoc` command to `~/.local/bin` (Linux/macOS) or `%LOCALAPPDATA%\codedoc\bin` (Windows) and adds it to your PATH. Open a new terminal and run `codedoc` from anywhere.
+
+Installer options (`install/install.sh`): `--no-modify-path` to skip touching your shell config, `--local <dir>` to install from a local copy of the project (useful for development).
+
+Uninstall:
+
+```
+bash install/uninstall.sh                    # Linux/macOS
+powershell -File install/uninstall.ps1       # Windows
+```
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -12,7 +37,7 @@ It scans a directory recursively, extracts every `Doc` comment block from the su
 ## Usage
 
 ```
-python3 main.py [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...]
+codedoc [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...]
 ```
 
 | Option | Description |
@@ -26,9 +51,15 @@ python3 main.py [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...]
 Examples:
 
 ```
-python3 main.py                        # scan "." and write out.md
-python3 main.py src/ -o docs/api       # scan src/ and write docs/api.md
-python3 main.py . -o out -exd test build -exf setup.py
+codedoc                            # scan "." and write out.md
+codedoc src/ -o docs/api           # scan src/ and write docs/api.md
+codedoc . -o out -exd test build -exf setup.py
+```
+
+Running from source instead (no install needed):
+
+```
+python3 main.py [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...]
 ```
 
 Notes:
@@ -117,6 +148,7 @@ Languages with only one comment family derive the other from it: a language with
 - `main.py` — argument parsing and file listing
 - `parser.py` — comment extraction and markdown generation, runs one async worker per file and preserves the file order in the output
 - `langs.py` — supported languages, comment tokens and the extension to family conversion tables
+- `install/` — the curl/PowerShell installers and uninstallers for Linux, macOS and Windows
 
 ## Generating this project's own docs
 
@@ -125,3 +157,4 @@ The project documents itself with the command:
 ```
 python3 main.py . -o docs -exd test
 ```
+The documentation is in a docs dir in the project

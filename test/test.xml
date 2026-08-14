@@ -1,0 +1,14 @@
+<!--Doc code: includes
+<!--includes
+<?xml version="1.0"?>
+
+<!--Doc end
+
+<!--Doc code : hello world program
+<!-- 
+ * hello world program 
+ * -->
+
+<greeting>hello world</greeting>
+
+<!--Doc end

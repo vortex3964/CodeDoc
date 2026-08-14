@@ -1,0 +1,15 @@
+#Doc code: imports
+#imports
+-module(test).
+
+#Doc end
+
+#Doc code : hello world program
+# hello world program
+
+-export([hello_world/0]).
+
+hello_world() ->
+    io:format("hello world~n").
+
+#Doc end

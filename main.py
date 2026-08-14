@@ -1,8 +1,10 @@
 # DESC: main.py is purely here to process the flags and start the procedure
 # for the files in the right mode
 
+import argparse
 import os
 from pathlib import Path
+from parser import dispatch
 
 #  list of ignored files extensions etch
 IGNORE_DIRS = {
@@ -97,16 +99,17 @@ IGNORE_FILES = {
 
 
 # recursively list all the files under root dir
-def list_files_req(root_dir, exc):
+def list_files_req(root_dir, exc_dirs: list, exc_files: list):
     files = []
 
     for dirpath, dirnames, filenames in os.walk(root_dir):
-        dirnames[:] = [d for d in dirnames if (d not in exc and d not in IGNORE_DIRS)]
+        dirnames[:] = [
+            d for d in dirnames if (d not in exc_dirs and d not in IGNORE_DIRS)
+        ]
 
         for fname in filenames:
-            if fname in IGNORE_FILES:
+            if fname in IGNORE_FILES or fname in exc_files:
                 continue
-
             ext = Path(fname).suffix.lower()
 
             if ext in IGNORE_EXTENSIONS:
@@ -120,14 +123,70 @@ def list_files_req(root_dir, exc):
     return files
 
 
+def help():
+    pass
+
+
 def main():
-    # exclude list leave till we add flags
-    exc = []
-    # current working dir needs to change
-    path = Path().parent.resolve()
-    print(path)
-    file_list = list_files_req(path, exc)
-    print(file_list)
+    # init the parser
+    parser = argparse.ArgumentParser(
+        description="cli tool to parse specialized comments from code files into markdown to help with documentation",
+        epilog="codedoc <path> -o doc -exd test/ docs/ -exf test.py code.py",
+    )
+
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="directory to read from defaults to ( current directory )",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="out",
+        nargs="?",
+        default="out.md",
+        required=False,
+        help="output path",
+    )
+
+    parser.add_argument(
+        "-exd",
+        "--exclude-dirs",
+        dest="exc_d",
+        nargs="*",
+        help="directores to exclude from reading",
+    )
+
+    parser.add_argument(
+        "-exf",
+        "--exclude-files",
+        dest="exc_f",
+        nargs="*",
+        help="files to exclude from reading",
+    )
+
+    parser.add_argument(
+        "-c",
+        "--clean",
+        dest="clean_doc",
+        nargs="?",
+        default="None",
+        help="remove doc end comments from codebase",
+    )
+
+    args = parser.parse_args()
+
+    file_list = list_files_req(args.path, args.exc_d, args.exc_f)
+    
+    clean = True
+
+    if args.clean_doc == "None":
+        clean = False
+
+    # print(file_list)
+    dispatch(file_list,args.out,clean)
 
 
 if __name__ == "__main__":

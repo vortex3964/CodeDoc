@@ -92,15 +92,15 @@ IGNORE_FILES = {
     "poetry.lock",
     "Pipfile.lock",
     "Cargo.lock",
+    ".gitignore",
 }
 
 
 # recursively list all the files under root dir
-def list_files_req(root_dir , exc):
+def list_files_req(root_dir, exc):
     files = []
 
-    for dirpath, dirnames , filenames in os.walk(root_dir):
-        
+    for dirpath, dirnames, filenames in os.walk(root_dir):
         dirnames[:] = [d for d in dirnames if (d not in exc and d not in IGNORE_DIRS)]
 
         for fname in filenames:
@@ -112,18 +112,23 @@ def list_files_req(root_dir , exc):
             if ext in IGNORE_EXTENSIONS:
                 continue
 
+            # make path relative to the project root since it will be displayed in the end file
+            dirpath = os.path.relpath(dirpath, root_dir)
             files.append(os.path.join(dirpath, fname))
 
-    return files.sort()
+    files.sort()
+    return files
 
 
 def main():
-    #exclude list leave till we add flags
+    # exclude list leave till we add flags
     exc = []
-    #current working dir needs to change
+    # current working dir needs to change
     path = Path().parent.resolve()
     print(path)
-    list_files_req(path,exc)
+    file_list = list_files_req(path, exc)
+    print(file_list)
+
 
 if __name__ == "__main__":
     main()

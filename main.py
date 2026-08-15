@@ -186,26 +186,26 @@ async def main():
     parser.add_argument(
         "-c",
         "--clean",
-        dest="clean_doc",
-        nargs="?",
-        default="None",
-        help="remove doc end comments from codebase",
+        action="store_true",
+        help="remove doc end comments from the source files",
+    )
+
+    parser.add_argument(
+        "-ca",
+        "--cleanall",
+        action="store_true",
+        help="remove every doc comment and doc end from the source files",
     )
 
     args = parser.parse_args()
 
     file_list = list_files_req(args.path, args.exc_d, args.exc_f)
 
-    clean = True
-
     # make sure the output is an md file
     args.out = f"{args.out}.md"
 
-    if args.clean_doc == "None":
-        clean = False
-
     # print(file_list)
-    await dispatch(file_list, args.out, clean)
+    await dispatch(file_list, args.out, args.clean, args.cleanall)
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ powershell -File install/uninstall.ps1       # Windows
 ## Usage
 
 ```
-codedoc [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...]
+codedoc [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...] [-c] [-ca]
 ```
 
 | Option | Description |
@@ -46,7 +46,8 @@ codedoc [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...]
 | `-o`, `--output` | output file name, `.md` is appended automatically, defaults to `out` |
 | `-exd`, `--exclude-dirs` | directories to skip (in addition to the built-in ignore list) |
 | `-exf`, `--exclude-files` | files to skip |
-| `-c`, `--clean` | accepted for compatibility, not implemented yet |
+| `-c`, `--clean` | remove `Doc end` comments from the source files (documents them first) |
+| `-ca`, `--cleanall` | remove every doc comment and `Doc end` from the source files, the code stays (documents them first) |
 
 Examples:
 

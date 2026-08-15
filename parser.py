@@ -85,22 +85,125 @@ def sync_read_file(name):
         return lines
 
 
-# Doc  : read_file
-# parses a file looking for doc comments and returns the
-# markdown text for it, or None if the file is unsupported
-# or has no doc comments
+def sync_rewrite_file(name: str, lines: list):
+    with open(name, "w", errors="replace") as f:
+        f.writelines(lines)
 
 
-async def read_file(name: str) -> str | None:
-    f_type = pathlib.Path(name).suffix
+# Doc code : remove_doc_lines
+# returns the file lines with the doc comments removed and the code
+# of every section intact, with clean_all every doc tag, description
+# block and doc end is dropped, otherwise only the doc end lines
 
+def remove_doc_lines(lines: list, ctx: dict, clean_all: bool) -> list:
+    tag_re = ctx["tag_re"]
+    doc_end_re = ctx["doc_end_re"]
+    single_line_re = ctx["single_line_re"]
+    mult_start_re = ctx["mult_start_re"]
+    mult_close_re = ctx["mult_close_re"]
+    mstart = ctx["mstart"]
+    mult_derived = ctx["mult_derived"]
+
+    result = []
+    i = 0
+    n = len(lines)
+
+    while i < n:
+        line = lines[i]
+
+        # a doc end line is a doc comment in both modes
+        if doc_end_re.match(line):
+            i += 1
+            continue
+
+        tag = tag_re.match(line)
+        if not tag:
+            result.append(line)
+            i += 1
+            continue
+
+        # a doc section starts here
+        if not clean_all:
+            # only the doc end lines are being removed, keep the tag line
+            result.append(line)
+            i += 1
+            continue
+
+        # drop the tag line and the doc comment block
+        i += 1
+
+        is_code = tag.group("code") is not None or not tag.group("desc").strip()
+
+        # drop the blank lines between the tag and the description block
+        while i < n and not lines[i].strip():
+            i += 1
+        if i >= n:
+            continue
+
+        # drop the leading description block, either a real multiline
+        # comment block or a run of single line comments
+        if mult_start_re.match(lines[i]):
+            if mult_derived:
+                while i < n and single_line_re.match(lines[i]):
+                    i += 1
+            else:
+                pos = lines[i].find(mstart)
+                rest = lines[i][pos + len(mstart):]
+                if not mult_close_re.search(rest):
+                    i += 1
+                    while i < n and not mult_close_re.search(lines[i]):
+                        i += 1
+                    if i < n:
+                        i += 1
+                else:
+                    i += 1
+        else:
+            while i < n and single_line_re.match(lines[i]):
+                i += 1
+
+        if not is_code:
+            # a plain doc section is made of comment lines only, drop them all
+            while i < n:
+                line = lines[i]
+                if tag_re.match(line) or doc_end_re.match(line):
+                    break
+                if single_line_re.match(line):
+                    i += 1
+                else:
+                    result.append(line)
+                    i += 1
+
+    return result
+
+
+# Doc code : clean_file
+# rewrites the source file without the doc comments, with clean_all
+# every doc tag, description block and doc end is removed, otherwise
+# only the doc end lines are removed
+
+async def clean_file(name: str, clean_all: bool):
+    ctx = make_comment_regexes(pathlib.Path(name).suffix)
+    if ctx is None:
+        return
+
+    lines = await asyncio.to_thread(sync_read_file, name)
+    cleaned = remove_doc_lines(lines, ctx, clean_all)
+
+    if cleaned != lines:
+        await asyncio.to_thread(sync_rewrite_file, name, cleaned)
+
+
+# Doc code : make_comment_regexes
+# resolves the comment family of a file extension and builds every
+# regex needed to recognize doc comments in that family,
+# returns None for unsupported extensions
+
+def make_comment_regexes(f_type: str) -> dict | None:
     com = GetCommentFamily(f_type)
     single = com.single_line
     mult = com.mult_pair
 
-    # unsupported file, drop it from the work list
     if single is None and mult is None:
-        await remove_item_from_list(name)
         return None
 
     mstart = mclose = None
@@ -132,31 +235,57 @@ async def read_file(name: str) -> str | None:
     else:
         opt_close = ""
 
+    return {
+        # match a full single line comment
+        "single_line_re": re.compile(rf"^\s*{esc_single}(.*)$"),
+        # match a doc tag line, the code group is set for "Doc code :" and the
+        # desc is the text after the colon, a bare "Doc" also matches with no
+        # description
+        "tag_re": re.compile(
+            rf"^\s*{esc_single}\s*[Dd]oc(?P<code>\s+[Cc]ode)?\s*:?\s*(?P<desc>.*?)\s*{opt_close}?\s*$"
+        ),
+        # match a doc end single line comment
+        "doc_end_re": re.compile(rf"^\s*{esc_single}\s*[Dd]oc\s+end\s*{opt_close}?\s*$"),
+        # strips a single-line comment marker from the front of a line
+        "strip_single_re": re.compile(rf"^\s*{esc_single}\s?(.*)$"),
+        # matches a line that opens a multiline block comment
+        "mult_start_re": re.compile(rf"^\s*{re.escape(mstart)}"),
+        # matches a line containing the closing delimiter
+        "mult_close_re": re.compile(re.escape(mclose)),
+        # strips a multiline open marker from the front / close marker from the end
+        "strip_mstart_re": re.compile(rf"^\s*{re.escape(mstart)}\s?"),
+        "strip_mclose_re": re.compile(rf"\s?{re.escape(mclose)}\s*$"),
+        "mstart": mstart,
+        "mult_derived": mult_derived,
+    }
+
+
+# Doc code : read_file
+# parses a file looking for doc comments and returns the
+# markdown text for it, or None if the file is unsupported
+# or has no doc comments
+
+
+async def read_file(name: str) -> str | None:
+    ctx = make_comment_regexes(pathlib.Path(name).suffix)
+
+    # unsupported file, drop it from the work list
+    if ctx is None:
+        await remove_item_from_list(name)
+        return None
+
+    single_line_re = ctx["single_line_re"]
+    tag_re = ctx["tag_re"]
+    doc_end_re = ctx["doc_end_re"]
+    mult_start_re = ctx["mult_start_re"]
+    mult_close_re = ctx["mult_close_re"]
+    strip_single_re = ctx["strip_single_re"]
+    strip_mstart_re = ctx["strip_mstart_re"]
+    strip_mclose_re = ctx["strip_mclose_re"]
+    mstart = ctx["mstart"]
+    mult_derived = ctx["mult_derived"]
+
     lines = await asyncio.to_thread(sync_read_file, name)
-
-    # match a full single line comment
-    single_line_re = re.compile(rf"^\s*{esc_single}(.*)$")
-
-    # match a doc tag line, the code group is set for "Doc code :" and the desc
-    # is the text after the colon, a bare "Doc" also matches with no description
-    tag_re = re.compile(
-        rf"^\s*{esc_single}\s*[Dd]oc(?P<code>\s+[Cc]ode)?\s*:?\s*(?P<desc>.*?)\s*{opt_close}?\s*$"
-    )
-
-    # match a doc end single line comment
-    doc_end_re = re.compile(rf"^\s*{esc_single}\s*[Dd]oc\s+end\s*{opt_close}?\s*$")
-
-    # strips a single-line comment marker from the front of a line
-    strip_single_re = re.compile(rf"^\s*{esc_single}\s?(.*)$")
-
-    # matches a line that opens a multiline block comment
-    mult_start_re = re.compile(rf"^\s*{re.escape(mstart)}")
-    # matches a line containing the closing delimiter
-    mult_close_re = re.compile(re.escape(mclose))
-
-    # strips a multiline open marker from the front / close marker from the end
-    strip_mstart_re = re.compile(rf"^\s*{re.escape(mstart)}\s?")
-    strip_mclose_re = re.compile(rf"\s?{re.escape(mclose)}\s*$")
 
     def strip_line(line: str):
         text = line.rstrip("\n")
@@ -213,7 +342,7 @@ async def read_file(name: str) -> str | None:
                 emit.append(text + "  ")
         return block_end, emit
 
-    lang_hint = f_type.lstrip(".") if f_type else ""
+    lang_hint = pathlib.Path(name).suffix.lstrip(".") if pathlib.Path(name).suffix else ""
 
     md_lines = [f"# {name}", ""]
     i = 0
@@ -308,11 +437,12 @@ async def read_file(name: str) -> str | None:
 
 
 # Doc code : worker
-# parses a file, waits until it is the worker's turn to write
-# and then writes the markdown to the output file
+# parses a file, waits until it is the worker's turn to write and
+# then writes the markdown to the output file, it can also clean
+# the doc comments out of the source file if asked for
 
 
-async def worker(filename: str):
+async def worker(filename: str, clean: bool = False, clean_all: bool = False):
     # read the contents of the file
     md = await read_file(filename)
 
@@ -321,6 +451,10 @@ async def worker(filename: str):
     if md is None:
         await remove_item_from_list(filename)
         return
+
+    # clean the doc comments out of the source file if asked for
+    if clean or clean_all:
+        await clean_file(filename, clean_all)
 
     # wait until it's this worker's turn to write
     async with cond:
@@ -334,10 +468,11 @@ async def worker(filename: str):
 
 # Doc code : dispatcher thread
 # sets up the order list and the output file, then starts one
-# worker task per file and waits for all of them to finish
+# worker task per file and waits for all of them to finish, the
+# clean flags are passed to every worker
 
 
-async def dispatch(list_files: list, out_path: str, _clean: bool):
+async def dispatch(list_files: list, out_path: str, clean: bool, clean_all: bool):
     global l
     l = list_files
     global out
@@ -345,10 +480,14 @@ async def dispatch(list_files: list, out_path: str, _clean: bool):
 
     # truncate the output file once so reruns don't duplicate
     # the previous docs, workers still append afterwards
+    # its fine here since there is only the dispatcher running
     open(out_path, "w").close()
 
     # create tasks for every file in the list and don't finish without them
-    gathered_tasks = [asyncio.create_task(worker(filename)) for filename in list_files]
+    gathered_tasks = [
+        asyncio.create_task(worker(filename, clean, clean_all))
+        for filename in list_files
+    ]
     await asyncio.gather(*gathered_tasks)
 
 

@@ -5,6 +5,8 @@
 import asyncio
 import pathlib
 import re
+from functools import cache
+
 from langs import GetCommentFamily
 
 # Doc code: global variables we reuse for multithreading
@@ -90,10 +92,11 @@ def sync_rewrite_file(name: str, lines: list):
         f.writelines(lines)
 
 
-# Doc code : remove_doc_lines
+# Doc  : remove_doc_lines
 # returns the file lines with the doc comments removed and the code
 # of every section intact, with clean_all every doc tag, description
 # block and doc end is dropped, otherwise only the doc end lines
+
 
 def remove_doc_lines(lines: list, ctx: dict, clean_all: bool) -> list:
     tag_re = ctx["tag_re"]
@@ -148,7 +151,7 @@ def remove_doc_lines(lines: list, ctx: dict, clean_all: bool) -> list:
                     i += 1
             else:
                 pos = lines[i].find(mstart)
-                rest = lines[i][pos + len(mstart):]
+                rest = lines[i][pos + len(mstart) :]
                 if not mult_close_re.search(rest):
                     i += 1
                     while i < n and not mult_close_re.search(lines[i]):
@@ -181,6 +184,7 @@ def remove_doc_lines(lines: list, ctx: dict, clean_all: bool) -> list:
 # every doc tag, description block and doc end is removed, otherwise
 # only the doc end lines are removed
 
+
 async def clean_file(name: str, clean_all: bool):
     ctx = make_comment_regexes(pathlib.Path(name).suffix)
     if ctx is None:
@@ -193,11 +197,16 @@ async def clean_file(name: str, clean_all: bool):
         await asyncio.to_thread(sync_rewrite_file, name, cleaned)
 
 
-# Doc code : make_comment_regexes
+# Doc end
+
+# Doc : make_comment_regexes
 # resolves the comment family of a file extension and builds every
 # regex needed to recognize doc comments in that family,
-# returns None for unsupported extensions
+# returns None for unsupported extensions, the result is cached
+# per extension so that files of the same language don't rebuild it
 
+
+@cache
 def make_comment_regexes(f_type: str) -> dict | None:
     com = GetCommentFamily(f_type)
     single = com.single_line
@@ -235,7 +244,13 @@ def make_comment_regexes(f_type: str) -> dict | None:
     else:
         opt_close = ""
 
+    # literal single line comment token, used to skip non doc lines
+    # without regex work, every doc tag line starts with it
+    comment_prefix = single
+
     return {
+        # a quick literal check that skips most lines before the regexes run
+        "comment_prefix": comment_prefix,
         # match a full single line comment
         "single_line_re": re.compile(rf"^\s*{esc_single}(.*)$"),
         # match a doc tag line, the code group is set for "Doc code :" and the
@@ -245,9 +260,9 @@ def make_comment_regexes(f_type: str) -> dict | None:
             rf"^\s*{esc_single}\s*[Dd]oc(?P<code>\s+[Cc]ode)?\s*:?\s*(?P<desc>.*?)\s*{opt_close}?\s*$"
         ),
         # match a doc end single line comment
-        "doc_end_re": re.compile(rf"^\s*{esc_single}\s*[Dd]oc\s+end\s*{opt_close}?\s*$"),
-        # strips a single-line comment marker from the front of a line
-        "strip_single_re": re.compile(rf"^\s*{esc_single}\s?(.*)$"),
+        "doc_end_re": re.compile(
+            rf"^\s*{esc_single}\s*[Dd]oc\s+end\s*{opt_close}?\s*$"
+        ),
         # matches a line that opens a multiline block comment
         "mult_start_re": re.compile(rf"^\s*{re.escape(mstart)}"),
         # matches a line containing the closing delimiter
@@ -260,14 +275,15 @@ def make_comment_regexes(f_type: str) -> dict | None:
     }
 
 
-# Doc code : read_file
+# Doc : read_file
 # parses a file looking for doc comments and returns the
 # markdown text for it, or None if the file is unsupported
 # or has no doc comments
 
 
 async def read_file(name: str) -> str | None:
-    ctx = make_comment_regexes(pathlib.Path(name).suffix)
+    suffix = pathlib.Path(name).suffix
+    ctx = make_comment_regexes(suffix)
 
     # unsupported file, drop it from the work list
     if ctx is None:
@@ -279,51 +295,42 @@ async def read_file(name: str) -> str | None:
     doc_end_re = ctx["doc_end_re"]
     mult_start_re = ctx["mult_start_re"]
     mult_close_re = ctx["mult_close_re"]
-    strip_single_re = ctx["strip_single_re"]
     strip_mstart_re = ctx["strip_mstart_re"]
     strip_mclose_re = ctx["strip_mclose_re"]
+    comment_prefix = ctx["comment_prefix"]
     mstart = ctx["mstart"]
     mult_derived = ctx["mult_derived"]
 
     lines = await asyncio.to_thread(sync_read_file, name)
 
-    def strip_line(line: str):
-        text = line.rstrip("\n")
-        if strip_mstart_re.match(text):
-            text = strip_mstart_re.sub("", text)
-        else:
-            m = strip_single_re.match(text)
-            if m:
-                return m.group(1)
+    # NOTE: turns a single_line_re match into the comment text, drops the
+    # one optional whitespace char after the marker (like the old
+    # strip_single_re), any closing delimiter and the line ending
+    def match_text(m) -> str:
+        text = m.group(1)
+        if text[:1] in " \t\r\n\f\v":
+            text = text[1:]
         if strip_mclose_re is not None:
             text = strip_mclose_re.sub("", text)
-        return text
+        return text.rstrip("\r\n")
 
-    # NOTE: find where a doc section ends (next tag, doc end, or EOF)
-    def section_end(start: int, n: int):
-        j = start
-        while j < n:
-            line = lines[j]
-            if doc_end_re.match(line) or tag_re.match(line):
-                return j - 1
-            j += 1
-        return n - 1
+    # NOTE: fast literal precheck, skips the regexes for every line that
+    # cannot be a doc comment, most lines of a file fail this instantly,
+    # lstrip returns the line unchanged when nothing is stripped so the
+    # common no leading whitespace case does not allocate
+    def is_doc_line(line: str) -> bool:
+        return line.lstrip(" \t").startswith(comment_prefix)
 
-    # NOTE: extract a leading multiline comment block from content,
-    # returns (index of the block's last line, text lines to emit) or (-1, [])
-    def extract_block(content: list, k: int):
-        if k >= len(content) or not mult_start_re.match(content[k]):
+    # NOTE: extract a leading comment block from the section window,
+    # either a real multiline block or a run of single line comments,
+    # returns (index of the block's last line, text lines to emit)
+    # or (-1, [])
+    def extract_block(k: int, content_end: int):
+        if k >= content_end:
             return -1, []
 
-        if mult_derived:
-            # NOTE: languages without a real multiline pair treat a run of
-            # single line comments as the block
-            t = k
-            while t < len(content) and single_line_re.match(content[t]):
-                t += 1
-            block_end = t - 1
-        else:
-            first = content[k]
+        if mult_start_re.match(lines[k]) and not mult_derived:
+            first = lines[k]
             pos = first.find(mstart)
             rest = first[pos + len(mstart) :]
 
@@ -331,18 +338,44 @@ async def read_file(name: str) -> str | None:
                 block_end = k
             else:
                 t = k + 1
-                while t < len(content) and not mult_close_re.search(content[t]):
+                while t < content_end and not mult_close_re.search(lines[t]):
                     t += 1
-                block_end = t if t < len(content) else len(content) - 1
+                block_end = t if t < content_end else content_end - 1
 
-        emit = []
-        for src in content[k : block_end + 1]:
-            text = strip_line(src)
-            if text.strip():
-                emit.append(text + "  ")
-        return block_end, emit
+            emit = []
+            for pos in range(k, block_end + 1):
+                text = lines[pos].rstrip("\r\n")
+                # the open marker only sits on the first line and the
+                # close marker only on the last one, no re-matching needed
+                if pos == k and strip_mstart_re.match(text):
+                    text = strip_mstart_re.sub("", text)
+                if pos == block_end and strip_mclose_re is not None:
+                    text = strip_mclose_re.sub("", text)
+                if text.strip():
+                    emit.append(text + "  ")
+            return block_end, emit
 
-    lang_hint = pathlib.Path(name).suffix.lstrip(".") if pathlib.Path(name).suffix else ""
+        # a run of single line comments is the block, either because the
+        # language derives its multiline pair from single line comments
+        # or because the section starts with one, the matches are
+        # collected once and reused for the emitted text
+        if single_line_re.match(lines[k]):
+            matches = []
+            t = k
+            while t < content_end:
+                m = single_line_re.match(lines[t])
+                if not m:
+                    break
+                matches.append(m)
+                t += 1
+            if not matches:
+                return -1, []
+            emit = [match_text(m) for m in matches]
+            return t - 1, [text + "  " for text in emit if text.strip()]
+
+        return -1, []
+
+    lang_hint = suffix.lstrip(".") if suffix else ""
 
     md_lines = [f"# {name}", ""]
     i = 0
@@ -350,11 +383,15 @@ async def read_file(name: str) -> str | None:
     found_any = False
 
     while i < n:
-        if doc_end_re.match(lines[i]):
+        line = lines[i]
+        if not is_doc_line(line):
+            i += 1
+            continue
+        if doc_end_re.match(line):
             i += 1
             continue
 
-        tag_match = tag_re.match(lines[i])
+        tag_match = tag_re.match(line)
         if not tag_match:
             i += 1
             continue
@@ -369,29 +406,39 @@ async def read_file(name: str) -> str | None:
         if not description:
             is_code = True
 
-        end_idx = section_end(i + 1, n)
-
         if description:
             md_lines.append(f"## {description}")
             md_lines.append("")
 
-        content = lines[i + 1 : end_idx + 1]
+        # single forward scan for the section boundary, the next tag, a
+        # doc end or EOF, the lines in between are the section content
+        content_start = i + 1
+        content_end = content_start
+        while content_end < n:
+            l = lines[content_end]
+            if is_doc_line(l) and (doc_end_re.match(l) or tag_re.match(l)):
+                break
+            content_end += 1
+
+        # skip the leading blank lines of the section
+        k = content_start
+        while k < content_end and not lines[k].strip():
+            k += 1
 
         if not is_code:
             # plain doc text made of comment lines
             emit_text = []
-            k = 0
-            while k < len(content) and not content[k].strip():
-                k += 1
-
-            if k < len(content):
-                block_end, emit = extract_block(content, k)
+            if k < content_end:
+                block_end, emit = extract_block(k, content_end)
                 if block_end >= 0:
                     emit_text.extend(emit)
                     k = block_end + 1
 
-            while k < len(content) and single_line_re.match(content[k]):
-                text = strip_line(content[k])
+            while k < content_end:
+                m = single_line_re.match(lines[k])
+                if not m:
+                    break
+                text = match_text(m)
                 if text.strip():
                     emit_text.append(text + "  ")
                 k += 1
@@ -401,32 +448,30 @@ async def read_file(name: str) -> str | None:
                 md_lines.append("")
 
         else:
-            # code section, a leading multiline comment block becomes the
+            # code section, a leading comment block becomes the
             # description text and the rest is emitted verbatim in a fence
-            k = 0
-            while k < len(content) and not content[k].strip():
-                k += 1
-
-            if k < len(content):
-                block_end, emit = extract_block(content, k)
+            if k < content_end:
+                block_end, emit = extract_block(k, content_end)
                 if block_end >= 0:
                     md_lines.extend(emit)
                     md_lines.append("")
                     k = block_end + 1
 
-            code = [src.rstrip("\n") for src in content[k:]]
-            while code and not code[0].strip():
-                code.pop(0)
-            while code and not code[-1].strip():
-                code.pop()
+            # trim the blank lines around the code window
+            start = k
+            while start < content_end and not lines[start].strip():
+                start += 1
+            end = content_end
+            while end > start and not lines[end - 1].strip():
+                end -= 1
 
-            if code:
+            if start < end:
                 md_lines.append(f"```{lang_hint}")
-                md_lines.extend(code)
+                md_lines.extend(lines[pos].rstrip("\r\n") for pos in range(start, end))
                 md_lines.append("```")
                 md_lines.append("")
 
-        i = end_idx + 1
+        i = content_end
 
     # NOTE: no doc comments of any kind were found in the file
     if not found_any:

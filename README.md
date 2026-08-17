@@ -39,6 +39,18 @@ codedoc --update
 
 Every normal run also checks for updates at the end and prints a note when a newer version is available, the check runs after the documentation is written so it never slows the file reading down.
 
+Uninstall with the tool itself:
+
+```
+codedoc --uninstall
+```
+
+or with the script:
+
+```
+bash install/uninstall.sh
+```
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -59,6 +71,7 @@ codedoc [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...] [-c] [-ca]
 | `-c`, `--clean` | remove `Doc end` comments from the source files (documents them first) |
 | `-ca`, `--cleanall` | remove every doc comment and `Doc end` from the source files, the code stays (documents them first) |
 | `--update` | update codedoc to the latest version, skips the documentation run |
+| `--uninstall` | remove codedoc, its launcher and the path lines, skips the documentation run |
 
 Examples:
 

@@ -118,11 +118,17 @@ commit on github, it runs at the end of main so the file reading
 is never slowed down by the network, it stays quiet when there  
 is no connection or a rate limit and it skips dev checkouts  
 
+## uninstall helper
+
+removes the launcher, the install dir and the path lines the  
+installer added to the shell configs, a dev checkout is left  
+alone  
+
 ## main
 
 parses the command line arguments, builds the file list and  
-starts the dispatcher, the update flag only updates the tool  
-itself and skips the documentation run
+starts the dispatcher, the update and uninstall flags only  
+manage the tool itself and skip the documentation run
 # ./parser.py
 
 ## Description

@@ -91,7 +91,15 @@ install_from_local() {
     fi
     rm -rf "$INSTALL_DIR"
     mkdir -p "$INSTALL_DIR"
-    cp -R "$local_source/." "$INSTALL_DIR/"
+    # a dev checkout has a .git folder and other files the install
+    # does not need, a copy with .git would refuse to self-update
+    tar -C "$local_source" \
+        --exclude='.git' \
+        --exclude='__pycache__' \
+        --exclude='out.md' \
+        --exclude='test' \
+        --exclude='docs' \
+        -cf - . | tar -C "$INSTALL_DIR" -xf -
 }
 
 download_and_install() {

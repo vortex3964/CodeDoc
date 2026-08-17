@@ -44,6 +44,15 @@ try {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
     Copy-Item (Join-Path $top.FullName "*") $InstallDir -Recurse -Force
 
+    # remember the commit this install came from so "codedoc --update"
+    # can report "already up to date", fails silently on no network
+    try {
+        $sha = (Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/commits/$Branch" -TimeoutSec 10).sha
+        if ($sha) { Set-Content -Path (Join-Path $InstallDir ".commit") -Value $sha }
+    } catch {
+        # no stamp, the first codedoc --update will fetch the latest
+    }
+
     # write the launcher, it tries python3 first and falls back to the py launcher
     New-Item -ItemType Directory -Path $BinDir | Out-Null
     $launcherBody = "@echo off`r`nwhere python3 >nul 2>&1 && (python3 `"$InstallDir\main.py`" %*) || (py -3 `"$InstallDir\main.py`" %*)"

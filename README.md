@@ -29,6 +29,16 @@ bash install/uninstall.sh                    # Linux/macOS
 powershell -File install/uninstall.ps1       # Windows
 ```
 
+## Updating
+
+`codedoc --update` checks for and applies the latest version, it only updates and skips the documentation run:
+
+```
+codedoc --update
+```
+
+Every normal run also checks for updates at the end and prints a note when a newer version is available, the check runs after the documentation is written so it never slows the file reading down.
+
 ## Requirements
 
 - Python 3.10 or newer
@@ -48,6 +58,7 @@ codedoc [path] [-o OUT] [-exd DIRS ...] [-exf FILES ...] [-c] [-ca]
 | `-exf`, `--exclude-files` | files to skip |
 | `-c`, `--clean` | remove `Doc end` comments from the source files (documents them first) |
 | `-ca`, `--cleanall` | remove every doc comment and `Doc end` from the source files, the code stays (documents them first) |
+| `--update` | update codedoc to the latest version, skips the documentation run |
 
 Examples:
 

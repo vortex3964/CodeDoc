@@ -10,9 +10,10 @@ import os
 import shutil
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
-from pathlib import Path
 from parser import dispatch
+from pathlib import Path
 
 # Doc : list of ignored directories, extensions and files
 # we keep lists called IGNORE_DIRS IGNORE_EXTENSIONS IGNORE_FILES of the
@@ -170,7 +171,7 @@ def fetch_latest_commit() -> str | None:
         with urllib.request.urlopen(COMMITS_URL, timeout=5) as resp:
             data = json.load(resp)
         return data.get("sha")
-    except Exception:
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
         return None
 
 
@@ -182,11 +183,15 @@ def apply_update(install_dir: str, latest: str) -> bool:
         with tarfile.open(tarball, "r:gz") as tf:
             tf.extractall(tmp)
 
-        src = next(
-            os.path.join(tmp, entry)
-            for entry in os.listdir(tmp)
-            if os.path.isfile(os.path.join(tmp, entry, "main.py"))
-        )
+        # find the extracted project folder, a broken tarball
+        # simply has no main.py and the update is aborted
+        src = None
+        for entry in os.listdir(tmp):
+            if os.path.isfile(os.path.join(tmp, entry, "main.py")):
+                src = os.path.join(tmp, entry)
+                break
+        if src is None:
+            return False
 
         for entry in os.listdir(src):
             source = os.path.join(src, entry)
@@ -203,10 +208,20 @@ def apply_update(install_dir: str, latest: str) -> bool:
         with open(os.path.join(install_dir, ".commit"), "w") as f:
             f.write(latest)
         return True
-    except Exception:
+    except (urllib.error.URLError, OSError, tarfile.ReadError, EOFError):
         return False
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def read_stamp(commit_file: str) -> str | None:
+    try:
+        if not os.path.isfile(commit_file):
+            return None
+        with open(commit_file) as f:
+            return f.read().strip()
+    except OSError:
+        return None
 
 
 async def check_for_update(apply: bool):
@@ -222,13 +237,9 @@ async def check_for_update(apply: bool):
             print("couldn't check for updates, check your network connection")
         return
 
-    commit_file = os.path.join(install_dir, ".commit")
-    current = None
-    if os.path.isfile(commit_file):
-        with open(commit_file) as f:
-            current = f.read().strip()
+    current = await asyncio.to_thread(read_stamp, os.path.join(install_dir, ".commit"))
 
-    if current == latest:
+    if current is not None and current == latest:
         if apply:
             print(f"codedoc is already up to date ({current[:7]})")
         return

@@ -170,10 +170,10 @@ Languages with only one comment family derive the other from it: a language with
 
 ## Project layout
 
-- `main.py` — argument parsing and file listing
-- `parser.py` — comment extraction and markdown generation, runs one async worker per file and preserves the file order in the output
-- `langs.py` — supported languages, comment tokens and the extension to family conversion tables
-- `install/` — the curl/PowerShell installers and uninstallers for Linux, macOS and Windows
+- `main.py`: argument parsing and file listing
+- `parser.py`: comment extraction and markdown generation, runs one async worker per file and preserves the file order in the output
+- `langs.py`: supported languages, comment tokens and the extension to family conversion tables
+- `install/`: the curl/PowerShell installers and uninstallers for Linux, macOS and Windows
 
 ## Generating this project's own docs
 

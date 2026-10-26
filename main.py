@@ -395,6 +395,8 @@ async def main():
     if args.update:
         await check_for_update(apply=True)
         return
+    
+    args.exc_d = [os.path.normpath(d) for d in (args.exc_d or [])]
 
     file_list = list_files_req(args.path, args.exc_d, args.exc_f)
 
